@@ -1,5 +1,7 @@
 # LangkahKerja
 
+Proyek dalam repository **benevolent** — Smart Decent Wealth and Work Growth App.
+
 Aplikasi Flutter untuk proyek UTS Mobile Front End, bertema **SDG 8: Decent Work and Economic Growth**.
 
 ## Menjalankan
