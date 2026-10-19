@@ -1,0 +1,48 @@
+// Local PostgreSQL/WASM tests. Does not contact or mutate a Supabase project.
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '../.tools/backend-tests/node_modules/@electric-sql/pglite/dist/index.js';
+
+const db = new PGlite();
+const A = '11111111-1111-4111-8111-111111111111';
+const B = '22222222-2222-4222-8222-222222222222';
+await db.exec(`
+  create role anon;
+  create role authenticated;
+  create schema auth;
+  create table auth.users(id uuid primary key);
+  create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+  grant usage on schema auth to anon, authenticated;
+  grant execute on function auth.uid() to anon, authenticated;
+`);
+await db.exec(await readFile(new URL('../supabase/migrations/202610170001_initial.sql', import.meta.url), 'utf8'));
+await db.query('insert into auth.users(id) values($1),($2)', [A,B]);
+await db.exec(`insert into public.jobs(id,payload,published,expires_at) select 'job-'||n, '{}', true, now()+interval '1 day' from generate_series(1,22) n;
+insert into public.jobs(id,payload,published,expires_at) values('expired','{}',true,now()-interval '1 day'),('draft','{}',false,now()+interval '1 day');`);
+await db.exec('set role anon');
+assert.equal((await db.query('select * from public.jobs')).rows.length, 22);
+await assert.rejects(db.query('select * from public.user_state'), /permission denied/);
+console.log('PASS: public feed excludes draft/expired rows; anonymous private access denied');
+await db.exec('reset role; set role authenticated');
+await db.query("select set_config('request.jwt.claim.sub',$1,false)", [A]);
+const payload = {app:'LangkahKerja',schema:2,name:'User A',saved:[]};
+let result = await db.query('select public.sync_user_state($1,$2::jsonb) as result', [0,JSON.stringify(payload)]);
+assert.equal(result.rows[0].result.revision, 1);
+await assert.rejects(db.query('select public.sync_user_state($1,$2::jsonb)', [0,JSON.stringify(payload)]), e => e.code === '40001');
+assert.equal((await db.query('select payload from public.user_state')).rows[0].payload.name, 'User A');
+console.log('PASS: state RPC creates revision and rejects stale concurrent writes');
+await db.query("select set_config('request.jwt.claim.sub',$1,false)", [B]);
+assert.equal((await db.query('select * from public.user_state')).rows.length, 0);
+await assert.rejects(db.query("update public.user_state set payload='{}'"), /permission denied/);
+console.log('PASS: user B cannot read/write user A data');
+await db.query("select set_config('request.jwt.claim.sub',$1,false)", [A]);
+await assert.rejects(db.query("insert into public.job_reports(user_id,job_id,reason) values($1,'job-1','scam')", [B]), /row-level security/);
+for(let n=1;n<=20;n++) await db.query("insert into public.job_reports(job_id,reason) values($1,'scam')", [`job-${n}`]);
+await assert.rejects(db.query("insert into public.job_reports(job_id,reason) values('job-21','scam')"), /Daily report limit/);
+console.log('PASS: report owner forgery rejected and daily quota enforced');
+await db.exec('reset role');
+await db.query('delete from auth.users where id=$1', [A]);
+assert.equal((await db.query('select * from public.user_state')).rows.length,0);
+assert.equal((await db.query('select * from public.job_reports')).rows.length,0);
+console.log('PASS: account deletion cascades to private state and reports');
+await db.close();

@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hapus akun — LangkahKerja</title><link rel="stylesheet" href="legal.css"></head>
+<body><main><a class="brand" href="privacy.html">▟ LangkahKerja</a><h1>Hapus akun dan data.</h1>
+<p>Halaman resmi permintaan penghapusan akun LangkahKerja, dikelola Benelovent. Verifikasi kepemilikan email sebelum menghapus akun. Kamu juga dapat melakukannya dari aplikasi melalui Profil → Akun &amp; sinkronisasi → Hapus akun.</p>
+<p>Akun, data favorit, catatan/riwayat lamaran, preferensi, agenda, dan laporan terkait akan dihapus dari sistem aktif. Cadangan infrastruktur mengikuti retensi penyedia. Berkas JSON/CSV yang sudah kamu ekspor serta salinan offline pada perangkat lain tidak ikut dihapus otomatis. Bersihkan data di setiap perangkat jika diperlukan.</p>
+<div id="message" class="message" role="status" aria-live="polite">Memeriksa layanan...</div>
+<form id="email-form"><label for="email">Email akun LangkahKerja</label><input id="email" type="email" autocomplete="email" required maxlength="254"><button id="send" type="submit">Kirim kode verifikasi</button></form>
+<form id="verify-form" hidden><label for="code">Kode dari email</label><input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" minlength="6" maxlength="8" pattern="[0-9]{6,8}" required><button id="verify" type="submit">Verifikasi email</button></form>
+<form id="delete-form" hidden><label for="confirmation">Ketik HAPUS untuk menghapus akun secara permanen</label><input id="confirmation" type="text" required autocomplete="off"><button id="delete" type="submit" class="danger">Hapus akun dan data</button></form>
+<p class="note">Kode verifikasi dan token hanya digunakan untuk permintaan ini. Jangan memberikan kode kepada orang lain. Jika ada kendala, kirim permintaan penghapusan dari email akunmu ke <a href="mailto:sastraxez@gmail.com?subject=Penghapusan%20akun%20LangkahKerja">sastraxez@gmail.com</a>. Tim Benelovent akan memverifikasi kepemilikan email sebelum memproses.</p>
+<footer><a href="privacy.html">Kebijakan privasi</a> · Benelovent</footer></main>
+<script src="config.js"></script><script src="delete-account.js"></script></body></html>

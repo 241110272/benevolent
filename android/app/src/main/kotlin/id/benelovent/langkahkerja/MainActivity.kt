@@ -1,4 +1,4 @@
-package id.ac.langkahkerja.langkah_kerja
+package id.benelovent.langkahkerja
 
 import io.flutter.embedding.android.FlutterActivity
 

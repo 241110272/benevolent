@@ -1,3 +1,6 @@
+import 'package:html/parser.dart' as html;
+import 'package:characters/characters.dart';
+
 enum ApplicationStatus {
   planned('Ingin dilamar'),
   applied('Sudah dilamar'),
@@ -21,24 +24,58 @@ class Job {
     this.tags = const [],
     this.demo = false,
     this.createdAt,
+    this.jobTypes = const [],
+    this.source = 'Arbeitnow',
+    this.salary,
   });
   final String id, title, company, location, description, url;
   final bool remote, demo;
   final int? createdAt;
   final List<String> tags;
+  final List<String> jobTypes;
+  final String source;
+  final String? salary;
 
-  factory Job.fromJson(Map<String, dynamic> json) => Job(
-    id: json['slug'] as String,
-    title: json['title'] as String,
-    company: json['company_name'] as String,
-    location: json['location'] as String? ?? 'Tidak disebutkan',
-    description: json['description'] as String? ?? '',
-    url: json['url'] as String? ?? '',
-    remote: json['remote'] == true,
-    tags: List<String>.from(json['tags'] as List? ?? []),
-    demo: json['demo'] == true,
-    createdAt: (json['created_at'] as num?)?.toInt(),
-  );
+  factory Job.fromJson(Map<String, dynamic> json) {
+    final id = '${json['slug'] ?? ''}'.trim();
+    final title = '${json['title'] ?? ''}'.trim();
+    final company = '${json['company_name'] ?? ''}'.trim();
+    if (id.isEmpty ||
+        title.isEmpty ||
+        company.isEmpty ||
+        id.length > 500 ||
+        title.characters.length > 500 ||
+        company.characters.length > 300) {
+      throw const FormatException('Data lowongan tidak lengkap');
+    }
+    return Job(
+      id: id,
+      title: title,
+      company: company,
+      location: json['location'] as String? ?? 'Tidak disebutkan',
+      description: json['description'] as String? ?? '',
+      url: json['url'] as String? ?? '',
+      remote: json['remote'] == true,
+      tags: (json['tags'] as List? ?? []).whereType<String>().take(20).toList(),
+      jobTypes: (json['job_types'] as List? ?? [])
+          .whereType<String>()
+          .take(20)
+          .toList(),
+      source: '${json['source'] ?? 'Arbeitnow'}',
+      salary:
+          json['salary'] is String &&
+              (json['salary'] as String).trim().isNotEmpty
+          ? (json['salary'] as String).trim()
+          : null,
+      demo: json['demo'] == true,
+      createdAt:
+          json['created_at'] is num &&
+              (json['created_at'] as num) >= 0 &&
+              (json['created_at'] as num) <= 4102444800
+          ? (json['created_at'] as num).toInt()
+          : null,
+    );
+  }
   Map<String, dynamic> toJson() => {
     'slug': id,
     'title': title,
@@ -50,7 +87,46 @@ class Job {
     'tags': tags,
     'demo': demo,
     'created_at': createdAt,
+    'job_types': jobTypes,
+    'source': source,
+    'salary': salary,
   };
+
+  String get plainDescription => html.parseFragment(description).text ?? '';
+  String get searchableText =>
+      '$title $company $location ${tags.join(' ')} ${jobTypes.join(' ')} $plainDescription'
+          .toLowerCase();
+  Uri? get applicationUri => safeExternalUri(url);
+
+  String get safeDescription {
+    final fragment = html.parseFragment(description);
+    for (final element in fragment.querySelectorAll(
+      'script,style,iframe,object,embed,img,video,audio,form,input,svg,link,meta,base,source,track',
+    )) {
+      element.remove();
+    }
+    for (final element in fragment.querySelectorAll('*')) {
+      final href = element.attributes['href'];
+      element.attributes.clear();
+      if (element.localName == 'a' &&
+          href != null &&
+          safeExternalUri(href) != null) {
+        element.attributes['href'] = href;
+      }
+    }
+    return fragment.outerHtml;
+  }
+}
+
+Uri? safeExternalUri(String value) {
+  final uri = Uri.tryParse(value.trim());
+  if (uri == null ||
+      uri.scheme != 'https' ||
+      uri.host.isEmpty ||
+      uri.userInfo.isNotEmpty) {
+    return null;
+  }
+  return uri;
 }
 
 const demoJobs = [

@@ -5,10 +5,17 @@ import '../services/job_store.dart';
 import '../widgets/brand.dart';
 import '../widgets/career_banner.dart';
 import '../widgets/job_card.dart';
+import '../models/user_data.dart';
+import '../services/cloud.dart';
+import 'settings.dart';
+import 'career_guide.dart';
+import 'agenda.dart';
+import 'manual_application.dart';
 
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, required this.store});
+  const AppShell({super.key, required this.store, this.cloud});
   final JobStore store;
+  final CloudController? cloud;
   @override
   State<AppShell> createState() => _AppShellState();
 }
@@ -16,12 +23,16 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int tab = 0, category = 0;
   final search = TextEditingController();
+  final applicationSearch = TextEditingController();
+  String city = '', jobType = '';
+  int days = 0;
   bool remote = false, matching = false, favorites = false, newest = true;
   ApplicationStatus? status;
   JobStore get store => widget.store;
   @override
   void dispose() {
     search.dispose();
+    applicationSearch.dispose();
     super.dispose();
   }
 
@@ -75,7 +86,7 @@ class _AppShellState extends State<AppShell> {
                 0 => home(),
                 1 => vacancies(),
                 2 => applications(),
-                _ => Preferences(store: store),
+                _ => Preferences(store: store, cloud: widget.cloud),
               },
             ),
           ],
@@ -194,9 +205,14 @@ class _AppShellState extends State<AppShell> {
         TextField(
           key: const ValueKey('home-search'),
           controller: search,
+          maxLength: 250,
           textInputAction: TextInputAction.search,
-          onSubmitted: (_) => setState(() => tab = 1),
+          onSubmitted: (value) {
+            store.rememberSearch(value);
+            setState(() => tab = 1);
+          },
           decoration: InputDecoration(
+            counterText: '',
             hintText: 'Posisi atau perusahaan',
             prefixIcon: const Icon(Icons.search_rounded, color: ink, size: 22),
             suffixIcon: IconButton(
@@ -348,7 +364,7 @@ class _AppShellState extends State<AppShell> {
     child: Text(
       store.demoMode
           ? 'Mode demo · Lowongan ilustrasi untuk presentasi.'
-          : 'Sumber: Arbeitnow · Terutama lowongan Jerman. Posisi remote dapat memiliki batasan lokasi.',
+          : 'Lowongan Indonesia dari sumber yang dicantumkan pada detail. Periksa status dan persyaratan pada situs aslinya.',
       style: const TextStyle(color: muted, fontSize: 10, height: 1.6),
     ),
   );
@@ -396,9 +412,196 @@ class _AppShellState extends State<AppShell> {
     ...jobs.map((j) => JobCard(job: j, store: store, compact: compact)),
   ];
 
+  Widget searchTools() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Wrap(
+        spacing: 6,
+        children: [
+          TextButton.icon(
+            onPressed: () async {
+              final controller = TextEditingController(
+                text: search.text.trim().isEmpty
+                    ? 'Peluang ${['semua', 'desain', 'teknologi'][category]}'
+                    : search.text.trim().characters.length <= 60
+                    ? search.text.trim()
+                    : 'Pencarian baru',
+              );
+              final form = GlobalKey<FormState>();
+              final name = await showDialog<String>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Simpan pencarian'),
+                  content: Form(
+                    key: form,
+                    child: TextFormField(
+                      controller: controller,
+                      maxLength: 60,
+                      decoration: const InputDecoration(
+                        labelText: 'Nama pencarian',
+                      ),
+                      validator: (v) => v?.trim().isNotEmpty == true
+                          ? null
+                          : 'Isi nama pencarian.',
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Batal'),
+                    ),
+                    FilledButton(
+                      onPressed: () {
+                        if (form.currentState!.validate()) {
+                          Navigator.pop(ctx, controller.text.trim());
+                        }
+                      },
+                      child: const Text('Simpan'),
+                    ),
+                  ],
+                ),
+              );
+              if (name == null) return;
+              try {
+                await store.saveSearch(
+                  SavedSearch(
+                    name: name,
+                    query: search.text,
+                    remote: remote,
+                    matching: matching,
+                    category: category,
+                    location: city,
+                    jobType: jobType,
+                    days: days,
+                  ),
+                );
+              } on FormatException catch (error) {
+                if (mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(error.message)));
+                }
+                return;
+              }
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(store.storageError ?? 'Pencarian disimpan.'),
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.bookmark_add_outlined, size: 16),
+            label: const Text(
+              'Simpan pencarian',
+              style: TextStyle(fontSize: 10),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () => showModalBottomSheet<void>(
+              context: context,
+              showDragHandle: true,
+              isScrollControlled: true,
+              builder: (ctx) => ListenableBuilder(
+                listenable: store,
+                builder: (ctx, _) => SafeArea(
+                  child: SizedBox(
+                    height: MediaQuery.sizeOf(ctx).height * .55,
+                    child: ListView(
+                      padding: const EdgeInsets.all(22),
+                      children: [
+                        const Text(
+                          'Pencarian tersimpan',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        if (store.savedSearches.isEmpty)
+                          const Text(
+                            'Simpan kombinasi kata kunci dan filter yang sering kamu gunakan.',
+                          ),
+                        for (final item in store.savedSearches)
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              item.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${item.query.isEmpty ? 'Semua kata kunci' : item.query}${item.location.isEmpty ? '' : ' · ${item.location}'}',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            trailing: IconButton(
+                              tooltip: 'Hapus pencarian ${item.name}',
+                              onPressed: () => store.removeSearch(item),
+                              icon: const Icon(Icons.close, size: 18),
+                            ),
+                            onTap: () {
+                              setState(() {
+                                search.text = item.query;
+                                remote = item.remote;
+                                matching = item.matching;
+                                category = item.category;
+                                city = item.location;
+                                jobType = item.jobType;
+                                days = item.days;
+                              });
+                              Navigator.pop(ctx);
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.manage_search, size: 16),
+            label: Text(
+              'Tersimpan (${store.savedSearches.length})',
+              style: const TextStyle(fontSize: 10),
+            ),
+          ),
+        ],
+      ),
+      if (search.text.isEmpty && store.recentSearches.isNotEmpty)
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              const Icon(Icons.history, size: 16, color: muted),
+              const SizedBox(width: 8),
+              ...store.recentSearches
+                  .take(5)
+                  .map(
+                    (q) => Padding(
+                      padding: const EdgeInsets.only(right: 7),
+                      child: ActionChip(
+                        label: Text(q, style: const TextStyle(fontSize: 10)),
+                        onPressed: () => setState(() => search.text = q),
+                      ),
+                    ),
+                  ),
+            ],
+          ),
+        ),
+      const SizedBox(height: 8),
+    ],
+  );
+
   List<Job> get filteredJobs {
     final results = store
-        .search(search.text, remote: remote, matching: matching)
+        .search(
+          search.text,
+          remote: remote,
+          matching: matching,
+          city: city,
+          type: jobType,
+          days: days,
+        )
         .where((j) {
           final text = '${j.title} ${j.tags.join(' ')}'.toLowerCase();
           return switch (category) {
@@ -416,11 +619,13 @@ class _AppShellState extends State<AppShell> {
           };
         })
         .toList();
-    results.sort(
-      (a, b) => newest
-          ? (b.createdAt ?? 0).compareTo(a.createdAt ?? 0)
-          : (a.createdAt ?? 0).compareTo(b.createdAt ?? 0),
-    );
+    results.sort((a, b) {
+      if (a.createdAt == null) return b.createdAt == null ? 0 : 1;
+      if (b.createdAt == null) return -1;
+      return newest
+          ? b.createdAt!.compareTo(a.createdAt!)
+          : a.createdAt!.compareTo(b.createdAt!);
+    });
     return results;
   }
 
@@ -445,8 +650,11 @@ class _AppShellState extends State<AppShell> {
                 child: TextField(
                   key: const ValueKey('explore-search'),
                   controller: search,
+                  maxLength: 250,
                   onChanged: (_) => setState(() {}),
+                  onSubmitted: store.rememberSearch,
                   decoration: InputDecoration(
+                    counterText: '',
                     hintText: 'Cari posisi atau perusahaan',
                     prefixIcon: const Icon(
                       Icons.search_rounded,
@@ -465,7 +673,12 @@ class _AppShellState extends State<AppShell> {
               ),
               const SizedBox(width: 9),
               Badge(
-                isLabelVisible: remote || matching,
+                isLabelVisible:
+                    remote ||
+                    matching ||
+                    city.isNotEmpty ||
+                    jobType.isNotEmpty ||
+                    days != 0,
                 child: IconButton.filledTonal(
                   tooltip: 'Filter lowongan',
                   style: IconButton.styleFrom(
@@ -483,6 +696,7 @@ class _AppShellState extends State<AppShell> {
             ],
           ),
           const SizedBox(height: 12),
+          searchTools(),
           Row(
             children: List.generate(
               3,
@@ -525,12 +739,31 @@ class _AppShellState extends State<AppShell> {
             compact: true,
             onTap: () => setState(() => remote = !remote),
           ),
-          if (remote || matching)
+          if (remote ||
+              matching ||
+              city.isNotEmpty ||
+              jobType.isNotEmpty ||
+              days != 0)
             Padding(
               padding: const EdgeInsets.only(top: 9),
               child: Wrap(
                 spacing: 7,
                 children: [
+                  if (city.isNotEmpty)
+                    InputChip(
+                      label: Text(city),
+                      onDeleted: () => setState(() => city = ''),
+                    ),
+                  if (jobType.isNotEmpty)
+                    InputChip(
+                      label: Text(jobType),
+                      onDeleted: () => setState(() => jobType = ''),
+                    ),
+                  if (days != 0)
+                    InputChip(
+                      label: Text('$days hari terakhir'),
+                      onDeleted: () => setState(() => days = 0),
+                    ),
                   if (remote)
                     InputChip(
                       label: const Text(
@@ -632,80 +865,180 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> showFilters() async {
     var draftRemote = remote, draftMatching = matching;
+    var draftType = jobType, draftDays = days;
+    final cityController = TextEditingController(text: city);
+    final types =
+        store.jobs
+            .expand((j) => j.jobTypes)
+            .where((t) => t.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    if (draftType.isNotEmpty && !types.contains(draftType)) {
+      types.add(draftType);
+    }
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: canvas,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, update) => SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 0, 22, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Peluang yang kamu cari',
-                  style: TextStyle(
-                    fontSize: 23,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -1,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Kerja remote'),
-                  subtitle: const Text(
-                    'Tetap periksa ketentuan lokasi perusahaan.',
-                    style: TextStyle(fontSize: 11),
-                  ),
-                  value: draftRemote,
-                  onChanged: (v) => update(() => draftRemote = v),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Sesuai preferensi'),
-                  subtitle: Text(
-                    store.skills.isEmpty && store.location.isEmpty
-                        ? 'Atur minat dan lokasi di halaman Profil.'
-                        : '${store.skills} · ${store.location.isEmpty ? 'Semua lokasi' : store.location}',
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                  value: draftMatching,
-                  onChanged: (v) => update(() => draftMatching = v),
-                ),
-                const SizedBox(height: 14),
-                const Text(
-                  'Pencocokan menggunakan kata kunci pada data yang telah dimuat, bukan penilaian kelayakan kerja.',
-                  style: TextStyle(color: muted, fontSize: 11, height: 1.6),
-                ),
-                const SizedBox(height: 22),
-                Row(
-                  children: [
-                    TextButton(
-                      onPressed: () => update(() {
-                        draftRemote = false;
-                        draftMatching = false;
-                      }),
-                      child: const Text('Reset'),
+            padding: EdgeInsets.fromLTRB(
+              22,
+              0,
+              22,
+              MediaQuery.viewInsetsOf(ctx).bottom + 20,
+            ),
+            child: SizedBox(
+              height: MediaQuery.sizeOf(ctx).height * .68,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Peluang yang kamu cari',
+                    style: TextStyle(
+                      fontSize: 23,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () {
-                          setState(() {
-                            remote = draftRemote;
-                            matching = draftMatching;
-                          });
-                          Navigator.pop(ctx);
-                        },
-                        child: const Text('Tampilkan lowongan'),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          TextField(
+                            controller: cityController,
+                            maxLength: 150,
+                            decoration: const InputDecoration(
+                              counterText: '',
+                              labelText: 'Kota atau lokasi',
+                              hintText: 'Contoh: Jakarta',
+                              prefixIcon: Icon(Icons.location_on_outlined),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            initialValue: draftType,
+                            key: ValueKey('type-$draftType'),
+                            decoration: const InputDecoration(
+                              labelText: 'Tipe pekerjaan',
+                            ),
+                            items: [
+                              const DropdownMenuItem(
+                                value: '',
+                                child: Text('Semua tipe'),
+                              ),
+                              ...types.map(
+                                (t) => DropdownMenuItem(
+                                  value: t,
+                                  child: Text(
+                                    t,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            onChanged: (v) => update(() => draftType = v!),
+                          ),
+                          const SizedBox(height: 14),
+                          DropdownButtonFormField<int>(
+                            initialValue: draftDays,
+                            key: ValueKey('days-$draftDays'),
+                            decoration: const InputDecoration(
+                              labelText: 'Tanggal ditayangkan',
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 0,
+                                child: Text('Semua tanggal'),
+                              ),
+                              DropdownMenuItem(
+                                value: 1,
+                                child: Text('24 jam terakhir'),
+                              ),
+                              DropdownMenuItem(
+                                value: 7,
+                                child: Text('7 hari terakhir'),
+                              ),
+                              DropdownMenuItem(
+                                value: 30,
+                                child: Text('30 hari terakhir'),
+                              ),
+                            ],
+                            onChanged: (v) => update(() => draftDays = v!),
+                          ),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Kerja remote'),
+                            subtitle: const Text(
+                              'Tetap periksa ketentuan lokasi perusahaan.',
+                              style: TextStyle(fontSize: 11),
+                            ),
+                            value: draftRemote,
+                            onChanged: (v) => update(() => draftRemote = v),
+                          ),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Sesuai preferensi'),
+                            subtitle: Text(
+                              store.skills.isEmpty && store.location.isEmpty
+                                  ? 'Atur minat dan lokasi di halaman Profil.'
+                                  : '${store.skills} · ${store.location.isEmpty ? 'Semua lokasi' : store.location}',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            value: draftMatching,
+                            onChanged: (v) => update(() => draftMatching = v),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Filter bekerja pada data yang telah dimuat. Pencocokan kata kunci bukan penilaian kelayakan kerja. Filter tanggal mengecualikan lowongan tanpa tanggal sumber.',
+                            style: TextStyle(
+                              color: muted,
+                              fontSize: 11,
+                              height: 1.6,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => update(() {
+                          draftRemote = false;
+                          draftMatching = false;
+                          draftType = '';
+                          draftDays = 0;
+                          cityController.clear();
+                        }),
+                        child: const Text('Reset'),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () {
+                            setState(() {
+                              remote = draftRemote;
+                              matching = draftMatching;
+                              city = cityController.text.trim();
+                              jobType = draftType;
+                              days = draftDays;
+                            });
+                            Navigator.pop(ctx);
+                          },
+                          child: const Text('Tampilkan lowongan'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -714,12 +1047,17 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget applications() {
-    final jobs = store.saved.values
+    final jobs = (favorites ? store.saved.values : store.applicationJobs.values)
         .where(
           (j) =>
               favorites ||
               (store.applications.containsKey(j.id) &&
                   (status == null || store.applications[j.id] == status)),
+        )
+        .where(
+          (j) => '${j.title} ${j.company} ${store.notes[j.id] ?? ''}'
+              .toLowerCase()
+              .contains(applicationSearch.text.toLowerCase().trim()),
         )
         .toList();
     return ListView(
@@ -732,6 +1070,42 @@ class _AppShellState extends State<AppShell> {
           style: TextStyle(fontSize: 12, color: muted),
         ),
         const SizedBox(height: 24),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => ManualApplication(store: store),
+                ),
+              ),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Catat lowongan sendiri'),
+            ),
+            TextButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => AgendaPage(store: store),
+                ),
+              ),
+              icon: const Icon(Icons.event_note_outlined, size: 18),
+              label: const Text('Agenda'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: applicationSearch,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+            hintText: 'Cari posisi, perusahaan, atau catatan',
+            prefixIcon: Icon(Icons.search),
+          ),
+        ),
+        const SizedBox(height: 16),
         SegmentedButton<bool>(
           segments: const [
             ButtonSegment(
@@ -824,173 +1198,8 @@ class _AppShellState extends State<AppShell> {
     ),
   );
 
-  void showTips() => showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (context) => DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: .65,
-      builder: (_, controller) => ListView(
-        controller: controller,
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 30),
-        children: const [
-          Text(
-            'Bekal sebelum melamar',
-            style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
-          ),
-          SizedBox(height: 20),
-          ListTile(
-            leading: Icon(Icons.description_outlined),
-            title: Text('Buat CV yang relevan'),
-            subtitle: Text(
-              'Tonjolkan pengalaman dan proyek yang sesuai dengan posisi. Periksa ejaan dan pastikan kontakmu aktif.',
-            ),
-          ),
-          ListTile(
-            leading: Icon(Icons.folder_outlined),
-            title: Text('Tunjukkan hasil karyamu'),
-            subtitle: Text(
-              'Sertakan portofolio, peranmu dalam proyek, dan hasil yang bisa dijelaskan. Proyek kuliah juga dapat digunakan.',
-            ),
-          ),
-          ListTile(
-            leading: Icon(Icons.forum_outlined),
-            title: Text('Latihan interview'),
-            subtitle: Text(
-              'Siapkan contoh situasi, tugas, tindakan, dan hasil. Pelajari perusahaan dan buat daftar pertanyaan.',
-            ),
-          ),
-          ListTile(
-            leading: Icon(Icons.verified_user_outlined),
-            title: Text('Baca lowongan dengan teliti'),
-            subtitle: Text(
-              'Periksa identitas perusahaan, persyaratan, lokasi, dan ketentuan kerja melalui sumber resmi.',
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class Preferences extends StatefulWidget {
-  const Preferences({super.key, required this.store});
-  final JobStore store;
-  @override
-  State<Preferences> createState() => _PreferencesState();
-}
-
-class _PreferencesState extends State<Preferences> {
-  late final name = TextEditingController(text: widget.store.name);
-  late final skills = TextEditingController(text: widget.store.skills);
-  late final location = TextEditingController(text: widget.store.location);
-  @override
-  void dispose() {
-    name.dispose();
-    skills.dispose();
-    location.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.fromLTRB(22, 4, 22, 22),
-    children: [
-      const Text(
-        'Tujuanmu,\npilihanmu.',
-        style: TextStyle(
-          fontSize: 44,
-          height: 1.01,
-          letterSpacing: -2.6,
-          fontWeight: FontWeight.w800,
-          color: ink,
-        ),
-      ),
-      const SizedBox(height: 12),
-      const Text(
-        'Kenali dirimu. Temukan peluang yang relevan.',
-        style: TextStyle(fontSize: 12, color: muted),
-      ),
-      const SizedBox(height: 28),
-      TextField(
-        controller: name,
-        textCapitalization: TextCapitalization.words,
-        decoration: const InputDecoration(
-          labelText: 'Nama panggilan',
-          prefixIcon: Icon(Icons.person_outline),
-        ),
-      ),
-      const SizedBox(height: 18),
-      TextField(
-        controller: skills,
-        decoration: const InputDecoration(
-          labelText: 'Minat & keterampilan',
-          hintText: 'Flutter, Design, Marketing',
-          helperText: 'Pisahkan kata kunci dengan koma.',
-          prefixIcon: Icon(Icons.auto_awesome_outlined),
-        ),
-      ),
-      const SizedBox(height: 18),
-      TextField(
-        controller: location,
-        decoration: const InputDecoration(
-          labelText: 'Lokasi yang diminati',
-          hintText: 'Contoh: Berlin',
-          helperText: 'Kosongkan untuk semua lokasi.',
-          prefixIcon: Icon(Icons.location_on_outlined),
-        ),
-      ),
-      const SizedBox(height: 24),
-      FilledButton.icon(
-        onPressed: () async {
-          final messenger = ScaffoldMessenger.of(context);
-          await widget.store.preferences(name.text, skills.text, location.text);
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(
-                widget.store.storageError ??
-                    'Preferensi disimpan. Aktifkan filter di Eksplorasi.',
-              ),
-            ),
-          );
-        },
-        icon: const Icon(Icons.check),
-        label: const Text('Simpan preferensi'),
-      ),
-      const SizedBox(height: 28),
-      Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: lavender.withValues(alpha: .45),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Satu langkah, banyak kemungkinan.',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 17,
-                letterSpacing: -.5,
-              ),
-            ),
-            SizedBox(height: 12),
-            Text(
-              'LangkahKerja mendukung SDG 8 melalui akses informasi pekerjaan dan pencatatan lamaran.\n\nFavorit, preferensi, dan catatan tersimpan di perangkat ini. Tanpa akun.\n\nData Arbeitnow terutama mencakup pasar kerja Jerman. Mode demo memakai lowongan ilustrasi Indonesia. Filter preferensi mencocokkan kata kunci dan lokasi pada data yang sudah dimuat.',
-              style: TextStyle(height: 1.7, fontSize: 12, color: muted),
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 26),
-      const Center(
-        child: Text(
-          'LANGKAHKERJA  /  1.0.0',
-          style: TextStyle(fontSize: 9, letterSpacing: 2, color: muted),
-        ),
-      ),
-    ],
+  void showTips() => Navigator.push(
+    context,
+    MaterialPageRoute<void>(builder: (_) => CareerGuide(store: store)),
   );
 }

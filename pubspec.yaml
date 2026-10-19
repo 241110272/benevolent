@@ -1,10 +1,10 @@
 name: langkah_kerja
 description: Aplikasi pencarian kerja dan pencatatan lamaran bertema SDG 8.
 publish_to: none
-version: 1.0.0+1
+version: 1.1.0+2
 environment:
-  sdk: '>=3.8.0 <4.0.0'
-  flutter: '>=3.35.0'
+  sdk: '>=3.11.0 <4.0.0'
+  flutter: '>=3.38.1'
 dependencies:
   flutter:
     sdk: flutter
@@ -14,6 +14,18 @@ dependencies:
   flutter_html: ^3.0.0
   # flutter_html 3.0.0 masih memakai API selector yang dihapus di html 0.15.7.
   html: 0.15.6
+  characters: ^1.4.1
+  sqflite: ^2.4.4+2
+  share_plus: ^13.3.1
+  file_selector: ^1.1.0
+  flutter_local_notifications: ^22.3.2
+  flutter_timezone: ^5.1.1
+  timezone: ^0.11.2
+  supabase_flutter: ^2.18.3
+  flutter_secure_storage: ^11.2.0
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^2.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -22,6 +34,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/fonts/OFL-Manrope.txt
   fonts:
     - family: Manrope
       fonts:

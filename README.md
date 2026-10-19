@@ -1,79 +1,91 @@
 # LangkahKerja
 
-Proyek dalam repository **benevolent** — Smart Decent Wealth and Work Growth App.
+**Versi kandidat 1.1.0+2** · Flutter · SDG 8 · Pengembang **Benelovent**
 
-Aplikasi Flutter untuk proyek UTS Mobile Front End, bertema **SDG 8: Decent Work and Economic Growth**.
+Repository **benevolent** — Smart Decent Wealth and Work Growth App.
 
-## Menjalankan
+Aplikasi untuk mencari lowongan Indonesia dan mengelola perjalanan melamar. UI mengikuti referensi plum–lavender, dengan font dan banner foto yang dibundel lokal.
 
-Flutter stable (Dart >= 3.8) diperlukan. Dari folder proyek:
+## Jalankan
+
+Direkomendasikan Flutter **3.47.7** (versi yang dipakai menguji proyek ini). Android membutuhkan JDK 21 dan Android SDK platform 36.
 
 ```powershell
 flutter pub get
-flutter run
-```
-
-Untuk preview melalui browser:
-
-```powershell
 flutter run -d chrome
+# Dengan backend yang sudah disiapkan:
+flutter run --dart-define-from-file=config/env.json
 ```
 
-SDK yang disiapkan pada komputer ini ada di `C:\Users\sastr\.codex\tools\flutter`. Jika Flutter belum ada di PATH, gunakan:
-
-```powershell
-& C:\Users\sastr\.codex\tools\flutter\bin\flutter.bat run -d chrome
-```
-
-Untuk Android, pasang Android SDK lewat Android Studio, jalankan emulator atau sambungkan perangkat dengan USB debugging, kemudian periksa `flutter doctor` dan `flutter devices`. Build iOS memerlukan macOS dan Xcode.
+Pada komputer ini, Flutter ada di `C:\Users\sastr\.codex\tools\flutter\bin\flutter.bat`. Gunakan path tersebut jika Flutter belum masuk PATH.
 
 ## Fitur
 
-- Beranda: ringkasan favorit, jumlah catatan lamaran, interview, dan tips karier.
-- Eksplorasi: REST API, pencarian, kategori Desain/Teknologi, filter remote, preferensi kata kunci/lokasi, urutan terbaru/terlama, refresh dan pagination.
-- Detail: deskripsi HTML, favorit, tautan lamaran asli, status dan catatan pribadi.
-- Lamaran Saya: filter status dan tab favorit.
-- Profil: nama panggilan, kata kunci minat/keterampilan, dan lokasi.
-- Penyimpanan lokal: favorit beserta salinan lowongannya, status, catatan, dan preferensi.
-- Mode demo: empat lowongan simulasi berlabel, dapat dipakai tanpa koneksi.
+- Onboarding dan kebijakan privasi berbahasa Indonesia.
+- Feed Indonesia dari backend, cache offline, refresh, pagination, pencarian, kategori, filter kota/tipe/tanggal/remote/preferensi, dan urutan tanggal.
+- Favorit, riwayat pencarian, serta kombinasi pencarian tersimpan.
+- Detail lowongan, sumber, gaji bila tersedia, tautan lamaran asli, berbagi, dan pelaporan masalah.
+- Lamaran manual dari sumber di luar aplikasi; status, catatan pribadi, riwayat perubahan, dan agenda follow-up.
+- Pengingat lokal opsional pada Android/iOS. Browser hanya menampilkan agenda.
+- Login/daftar lewat kode email, sesi aman di perangkat mobile, sinkronisasi revisi, pemisahan akun, dan penyelesaian konflik.
+- Ekspor cadangan JSON, pemulihan tervalidasi, ekspor CSV, penghapusan data/cache, dan penghapusan akun.
+- Checklist persiapan serta materi CV, portofolio, interview, dan keamanan lowongan.
+- Ikon aplikasi, konfigurasi signing rilis, CI, skema SQL/RLS, Edge Functions, halaman privasi/penghapusan publik, dan draf listing Play Store.
 
-## Sumber data dan batasan
+**Status integrasi:** sesuai permintaan pemilik, Supabase hanya disiapkan sebagai kode dan panduan; belum diterapkan ke proyek mana pun. Feed Indonesia memerlukan data kurasi berizin atau API provider yang sudah disetujui. Tanpa konfigurasi, fitur lokal dan mode demo tetap bisa dicoba; login/feed tidak menampilkan sukses palsu.
 
-Endpoint: [Arbeitnow Job Board API](https://www.arbeitnow.com/api/job-board-api). API ini terutama berisi lowongan Jerman. Remote tidak selalu berarti dapat bekerja dari negara mana pun. Data gaji tidak diasumsikan tersedia. Tidak ada klaim lowongan Indonesia dari API ini.
+## Dokumen penting
 
-Mode demo dapat diaktifkan di bagian bawah halaman Eksplorasi atau saat API gagal. Data demo Indonesia adalah fiktif dan tombol melamar dinonaktifkan. Kembali ke API melalui tombol beralih atau refresh.
+- [Setup backend, akun, dan sumber Indonesia](docs/BACKEND_SETUP.md)
+- [Gerbang rilis, signing, dan Play Console](docs/RELEASE.md)
+- [APK debug dan pengujian Android](docs/ANDROID_TESTING.md)
+- [Bukti dan batas validasi](docs/VALIDATION.md)
+- [Draf materi Play Store](docs/store/LISTING.md)
+- [Kebijakan privasi publik](docs/legal/privacy.html)
+- [Halaman penghapusan akun publik](docs/legal/delete-account.html)
+- [Aset foto/font dan prompt](assets/README.md)
 
-UI mengikuti referensi plum–lavender: logo tangga, tipografi Manrope, banner foto lokal, kartu lowongan ringkas, serta navigasi Beranda / Eksplorasi / Lamaran / Profil. Pada browser desktop, aplikasi ditampilkan dalam panel selebar 430 px; pada ponsel aplikasi mengisi layar. Foto dan font dibundel dalam `assets/`; prompt foto dan lisensi font dijelaskan di [dokumentasi aset](assets/README.md).
+Lowongan demo selalu berlabel dan bukan lowongan aktif. Lamaran dilakukan pada situs sumber; status diperbarui oleh pengguna sendiri. Tidak ada pengiriman CV otomatis atau klaim lowongan telah diverifikasi secara independen.
 
-Pencarian dan filter dijalankan pada halaman data yang sudah dimuat. Gunakan **Muat lebih banyak** untuk memperluas hasil. Filter preferensi mencari salah satu kata kunci (dipisahkan koma) pada judul, perusahaan, lokasi, tag, atau deskripsi, ditambah lokasi jika diisi. Ini bukan prediksi peluang diterima.
+## Pengujian
 
-Melamar membuka situs sumber melalui browser. Pengguna mengisi formulir di situs tersebut dan mencatat status sendiri di aplikasi. Tidak ada akun, backend perusahaan, pengiriman CV, atau pembaruan status otomatis. Data lokal tidak tersinkron antarperangkat dan dapat hilang saat data aplikasi dihapus.
+```powershell
+dart format --output=none --set-exit-if-changed lib test
+flutter analyze
+flutter test
+flutter build web --no-wasm-dry-run
+```
+
+Pengujian SQL lokal memakai PostgreSQL/WASM dan tidak menyentuh proyek Supabase:
+
+```powershell
+npm install --prefix .tools/backend-tests @electric-sql/pglite@0.5.10
+node scripts/backend_test.mjs
+```
+
+Ini memeriksa pembatasan feed publik, isolasi data per akun, revisi konflik, kuota laporan, dan cascade penghapusan akun. Uji email OTP, perangkat Android/iOS, sinkronisasi dua perangkat, serta notifikasi native tetap harus dijalankan pada konfigurasi nyata sebelum rilis.
+
+## Mencoba alur lokal
+
+1. Selesaikan onboarding, buka Eksplorasi, dan pilih **Coba mode demo** atau **Gunakan demo** saat sumber belum terhubung.
+2. Cari posisi, coba kategori/filter, dan simpan pencarian.
+3. Buka detail, simpan favorit, pilih status, tulis catatan lalu **Simpan catatan**.
+4. Tambahkan agenda. Pada Android/iOS, aktifkan notifikasi jika diinginkan.
+5. Di Lamaran, pilih **Catat lowongan sendiri** untuk peluang dari luar aplikasi.
+6. Buka Profil → Bekal karier, Data & privasi, atau Akun & sinkronisasi.
+7. Ekspor cadangan, muat ulang aplikasi, dan periksa pemulihan data.
 
 ## Struktur
 
 ```text
-lib/main.dart                 Tema dan inisialisasi
-lib/models/job.dart           Model lowongan, status, dan data simulasi
-lib/services/job_store.dart   API, state, filter, penyimpanan lokal
-lib/screens/app.dart          Beranda, lowongan, lamaran, preferensi
-lib/screens/detail.dart       Detail lowongan dan pencatatan
-lib/widgets/job_card.dart     Kartu lowongan dan komponen bersama
-test/                        Pengujian penyimpanan, filter, dan alur UI
+lib/models/       Model lowongan, status, riwayat, pencarian tersimpan
+lib/services/     SQLite/prefs, API, cloud sync, ekspor, notifikasi
+lib/screens/      Beranda, eksplorasi, detail, akun, agenda, privasi, materi
+lib/widgets/      Komponen tema bersama
+supabase/         Migrasi RLS dan Edge Functions (belum dideploy)
+docs/             Panduan rilis, backend, legal, dan listing
+scripts/          Validasi rilis, ikon, legal, dan tes SQL
+test/             Pengujian logika, keamanan, cloud mock, dan alur UI
 ```
 
-## Pemeriksaan
-
-```powershell
-flutter analyze
-flutter test
-flutter build web
-```
-
-## Alur demo presentasi
-
-1. Buka Eksplorasi, pilih **Coba mode demo** di bagian bawah daftar.
-2. Cari `Design`, buka detail, dan simpan favorit.
-3. Pilih status **Interview**, lalu tambahkan catatan.
-4. Buka Lamaran untuk melihat hasilnya dan filter berdasarkan status.
-5. Isi keterampilan `Figma` serta lokasi `Jakarta` di Profil, simpan, kemudian buka tombol filter di Eksplorasi dan aktifkan **Sesuai preferensi**.
-6. Muat ulang aplikasi untuk membuktikan penyimpanan lokal.
+Lisensi proyek mengikuti [GPL-3.0](LICENSE). Lisensi font Manrope ada di `assets/fonts/OFL-Manrope.txt`.

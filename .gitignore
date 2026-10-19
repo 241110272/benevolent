@@ -46,3 +46,16 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Private configuration, credentials, and local tooling
+config/env.json
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+**/key.properties
+.tools/
+node_modules/
+supabase/.temp/
+supabase/.branches/

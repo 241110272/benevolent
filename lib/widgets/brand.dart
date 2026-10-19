@@ -11,6 +11,8 @@ class Brand extends StatelessWidget {
       SizedBox(width: 7),
       Text(
         'LangkahKerja',
+        // The wordmark is part of the logo; page content still follows OS text size.
+        textScaler: TextScaler.noScaling,
         style: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w800,

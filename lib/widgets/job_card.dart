@@ -122,16 +122,14 @@ class JobCard extends StatelessWidget {
                     ),
                   ),
                   SizedBox(
-                    width: 28,
-                    height: 32,
+                    width: 44,
+                    height: 44,
                     child: IconButton(
                       padding: EdgeInsets.zero,
-                      tooltip: store.applications.containsKey(job.id)
-                          ? 'Tersimpan dalam lamaran'
+                      tooltip: store.saved.containsKey(job.id)
+                          ? 'Hapus favorit'
                           : 'Simpan favorit',
-                      onPressed: store.applications.containsKey(job.id)
-                          ? null
-                          : () => store.toggleSave(job),
+                      onPressed: () => store.toggleSave(job),
                       icon: Icon(
                         store.saved.containsKey(job.id)
                             ? Icons.bookmark_rounded
@@ -143,6 +141,13 @@ class JobCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (!compact) ...[
+                const SizedBox(height: 9),
+                Text(
+                  job.demo ? 'Data ilustrasi' : job.source,
+                  style: const TextStyle(fontSize: 10, color: muted),
+                ),
+              ],
               if (!compact || store.applications.containsKey(job.id)) ...[
                 const SizedBox(height: 13),
                 Wrap(

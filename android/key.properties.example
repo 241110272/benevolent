@@ -1,0 +1,5 @@
+# Copy to key.properties (ignored by Git). Keep the keystore outside this repository.
+storeFile=C:/path/to/private/upload-keystore.jks
+storePassword=REPLACE_LOCALLY
+keyAlias=upload
+keyPassword=REPLACE_LOCALLY
